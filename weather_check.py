@@ -26,7 +26,7 @@ SCOPE = (
 
 
 @dataclass
-class HourlyForecast:
+class OutWestSepticHourlyForecast:
     time: str
     temp_f: float | None
     wind_mph: float | None
@@ -37,15 +37,20 @@ class HourlyForecast:
 
 
 @dataclass
-class CheckResult:
+class OutWestSepticWeatherCheckResult:
     location: str
     lat: float
     lon: float
     checked_at: str
-    next_3_days: list[HourlyForecast]
+    next_3_days: list[OutWestSepticHourlyForecast]
     recommendation: str
     reasoning: list[str]
     scope: str = SCOPE
+
+
+# Backward-compatible public names refer to the same implementation classes.
+HourlyForecast = OutWestSepticHourlyForecast
+CheckResult = OutWestSepticWeatherCheckResult
 
 
 def http_get(url: str) -> dict[str, Any]:
@@ -98,7 +103,7 @@ def _wind_mph(value: Any) -> float | None:
 
 
 def get_hourly(office: str, x: int, y: int, hours: int = 72,
-               *, as_of: datetime | None = None) -> list[HourlyForecast]:
+               *, as_of: datetime | None = None) -> list[OutWestSepticHourlyForecast]:
     now = as_of if as_of is not None else datetime.now(timezone.utc)
     cutoff = now + timedelta(hours=hours)
     data = http_get(f"{NOAA_BASE}/gridpoints/{office}/{x},{y}/forecast/hourly")
@@ -112,7 +117,7 @@ def get_hourly(office: str, x: int, y: int, hours: int = 72,
             # Preserve invalid periods so decide() can report incomplete data.
             pass
         probability = p.get("probabilityOfPrecipitation") or {}
-        out.append(HourlyForecast(
+        out.append(OutWestSepticHourlyForecast(
             time=p.get("startTime", ""), end_time=p.get("endTime"),
             temp_f=_temperature_f(p), wind_mph=_wind_mph(p.get("windSpeed")),
             precip_prob=probability.get("value"),
@@ -121,7 +126,7 @@ def get_hourly(office: str, x: int, y: int, hours: int = 72,
     return out
 
 
-def decide(forecasts: list[HourlyForecast], *, as_of: datetime | None = None) -> tuple[str, list[str]]:
+def decide(forecasts: list[OutWestSepticHourlyForecast], *, as_of: datetime | None = None) -> tuple[str, list[str]]:
     """Screen [as_of, as_of + 48 hours): HOLD, UNKNOWN, or NO_FLAGS.
 
     NO_FLAGS requires valid, continuous hourly coverage. It is not a safety rating.
@@ -174,7 +179,7 @@ def decide(forecasts: list[HourlyForecast], *, as_of: datetime | None = None) ->
     return "NO_FLAGS", ["No configured weather flags found in the complete 48-hour forecast; other hazards are not assessed."]
 
 
-def run(lat: float, lon: float, location: str, hours: int = 72) -> CheckResult:
+def run(lat: float, lon: float, location: str, hours: int = 72) -> OutWestSepticWeatherCheckResult:
     if not _number(lat) or not -90 <= lat <= 90:
         raise ValueError("latitude must be finite and between -90 and 90")
     if not _number(lon) or not -180 <= lon <= 180:
@@ -185,14 +190,14 @@ def run(lat: float, lon: float, location: str, hours: int = 72) -> CheckResult:
     office, x, y, official = get_gridpoint(lat, lon)
     forecasts = get_hourly(office, x, y, hours=hours, as_of=now)
     rec, reasons = decide(forecasts, as_of=now)
-    return CheckResult(
+    return OutWestSepticWeatherCheckResult(
         location=official or location, lat=lat, lon=lon,
         checked_at=now.isoformat(), next_3_days=forecasts,
         recommendation=rec, reasoning=reasons,
     )
 
 
-def render_text(result: CheckResult) -> str:
+def render_text(result: OutWestSepticWeatherCheckResult) -> str:
     lines = [f"Out West Septic weather check for {result.location}", f"Checked at {result.checked_at}", "",
              f"Weather screen: {result.recommendation}", result.scope]
     lines.extend(f"  - {reason}" for reason in result.reasoning)

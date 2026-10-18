@@ -17,6 +17,18 @@ python weather_check.py --hours 72
 
 Coordinates must be finite and within latitude/longitude ranges. `--hours` accepts 48 through 168 and controls the retrieved/displayable horizon; screening always covers 48 elapsed hours from `checked_at`.
 
+## Python API
+
+`OutWestSepticHourlyForecast` and `OutWestSepticWeatherCheckResult` are the public data classes. `HourlyForecast` and `CheckResult` remain exact aliases for existing callers.
+
+```python
+from weather_check import OutWestSepticWeatherCheckResult, run
+
+result: OutWestSepticWeatherCheckResult = run(32.78, -98.32, "Lone Camp, TX")
+print(result.recommendation)
+print(result.scope)
+```
+
 ## Results and compatibility
 
 | `recommendation` | Meaning | Exit code |
